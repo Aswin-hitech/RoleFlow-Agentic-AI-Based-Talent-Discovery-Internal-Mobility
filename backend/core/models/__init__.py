@@ -1,0 +1,35 @@
+from ..extensions import db
+from .schema import (
+    User,
+    Employee,
+    Skill,
+    SkillRelationship,
+    EmployeeSkill,
+    Project,
+    Certification,
+    Role,
+    RoleCandidate,
+    Transfer,
+    SkillGapRecord,
+    Course,
+    LearningPlanRecord,
+    MatchRun,
+)
+
+__all__ = [
+    "db",
+    "User",
+    "Employee",
+    "Skill",
+    "SkillRelationship",
+    "EmployeeSkill",
+    "Project",
+    "Certification",
+    "Role",
+    "RoleCandidate",
+    "Transfer",
+    "SkillGapRecord",
+    "Course",
+    "LearningPlanRecord",
+    "MatchRun",
+]
