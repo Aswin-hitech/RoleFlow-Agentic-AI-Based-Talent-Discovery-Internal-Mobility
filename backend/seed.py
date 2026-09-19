@@ -74,6 +74,7 @@ def seed_database(reset: bool = False):
             ),
         ]
         db.session.add_all(users)
+        db.session.commit()
 
         print("Seeding skills and ontology relationships...")
         skills_data = [
@@ -154,6 +155,7 @@ def seed_database(reset: bool = False):
                 level=c_lvl,
             )
             db.session.add(c)
+        db.session.commit()
 
         print("Seeding mandatory and rich employee profiles (§43)...")
 
@@ -173,6 +175,7 @@ def seed_database(reset: bool = False):
             embedding=embed_texts(["Data Analyst Python SQL Statistics Machine Learning Predictive Modeling Data & AI"])[0],
         )
         db.session.add(emp_a)
+        db.session.flush()
 
         # Projects for Arjun Mehta
         p_a1 = Project(
@@ -245,6 +248,7 @@ def seed_database(reset: bool = False):
             embedding=embed_texts(["Software Engineer Python React APIs Database Full Stack Engineering"])[0],
         )
         db.session.add(emp_b)
+        db.session.flush()
 
         p_b = Project(
             id="prj-1025-1",
@@ -286,6 +290,7 @@ def seed_database(reset: bool = False):
             embedding=embed_texts(["QA Engineer Automation Python Testing CI/CD Quality Engineering"])[0],
         )
         db.session.add(emp_c)
+        db.session.flush()
 
         p_c = Project(
             id="prj-1026-1",
@@ -349,6 +354,7 @@ def seed_database(reset: bool = False):
                 embedding=embed_texts([f"{base_role} {dept} {' '.join(base_skills)}"])[0],
             )
             db.session.add(e)
+            db.session.flush()
 
             # Add projects
             p = Project(

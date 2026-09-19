@@ -3,6 +3,7 @@
 import hashlib
 import logging
 import math
+import os
 from functools import lru_cache
 
 from ..config import Config
@@ -10,14 +11,39 @@ from ..config import Config
 logger = logging.getLogger(__name__)
 
 
-@lru_cache(maxsize=1)
+_MODEL_INITIALIZED = False
+_CACHED_MODEL = None
+
+
 def get_embedding_model():
+    global _MODEL_INITIALIZED, _CACHED_MODEL
+    if _MODEL_INITIALIZED:
+        return _CACHED_MODEL
+
+    _MODEL_INITIALIZED = True
+    use_st = os.getenv("USE_SENTENCE_TRANSFORMERS", "false").lower() in ("1", "true", "yes")
+    if not use_st:
+        _CACHED_MODEL = None
+        return None
+
     try:
         from sentence_transformers import SentenceTransformer
-        return SentenceTransformer(Config.EMBEDDING_MODEL, device=Config.EMBEDDING_DEVICE)
+        try:
+            _CACHED_MODEL = SentenceTransformer(
+                Config.EMBEDDING_MODEL,
+                device=Config.EMBEDDING_DEVICE,
+                local_files_only=True,
+            )
+        except Exception:
+            if os.getenv("ENABLE_HF_DOWNLOAD", "false").lower() in ("1", "true", "yes"):
+                _CACHED_MODEL = SentenceTransformer(Config.EMBEDDING_MODEL, device=Config.EMBEDDING_DEVICE)
+            else:
+                _CACHED_MODEL = None
     except Exception as exc:
         logger.info("SentenceTransformer not loaded (%s), using fast semantic hashing embedder", exc)
-        return None
+        _CACHED_MODEL = None
+
+    return _CACHED_MODEL
 
 
 def _fallback_embed(text: str, dim: int = 768) -> list[float]:

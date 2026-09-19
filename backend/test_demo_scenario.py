@@ -138,6 +138,23 @@ Requirements:
     opps = res.get_json()["opportunities"]
     print(f"       ✓ Employee opportunities loaded: {len(opps)} visible opportunities available")
 
+    # Step 17b: Employee consults AI Career Assistant
+    print("\n[17b/21] Employee Consults AI Career Assistant (Grounded Chatbot)...")
+    res = client.get(f"/api/v1/me/chat/context?role_id={new_role_id}", headers=emp_headers)
+    assert res.status_code == 200
+    ctx_data = res.get_json()
+    print(f"       ✓ Chat Context: Role '{ctx_data.get('role_title')}', Fit {ctx_data.get('fit_score')}%, Readiness {ctx_data.get('readiness_score')}%")
+    print(f"       ✓ Grounded Evidence Sources: {ctx_data.get('sources')}")
+
+    res = client.post("/api/v1/me/chat", headers=emp_headers, json={
+        "message": "Why is my readiness score lower than my fit score?",
+        "role_id": new_role_id,
+    })
+    assert res.status_code == 200
+    chat_data = res.get_json()
+    print(f"       ✓ AI Career Assistant Reply: {chat_data.get('message')[:120]}...")
+    print(f"       ✓ Suggested Action Chips: {chat_data.get('suggested_actions', [])[:3]}")
+
     # Step 18: Multiple Role Preference (§27)
     print("\n[18/21] Resolving Multiple Role Conflict: Setting 1st and 2nd Preferences...")
     res = client.put("/api/v1/me/role-preferences", headers=emp_headers, json={

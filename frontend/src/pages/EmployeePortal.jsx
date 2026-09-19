@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Icon, { Logo } from "../components/Icon.jsx";
+import EmployeeCareerChatbot from "../components/EmployeeCareerChatbot.jsx";
 import { api } from "../lib/api";
 import { useAuth } from "../hooks/useAuth.jsx";
 
@@ -12,6 +13,13 @@ export default function EmployeePortal() {
   const [notice, setNotice] = useState("");
   const [prefRole1, setPrefRole1] = useState("");
   const [prefRole2, setPrefRole2] = useState("");
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatRoleId, setChatRoleId] = useState(null);
+
+  function openCareerAssistant(roleId = null) {
+    setChatRoleId(roleId);
+    setIsChatOpen(true);
+  }
 
   // Query employee profile
   const profileQuery = useQuery({
@@ -291,6 +299,15 @@ export default function EmployeePortal() {
                         <p key={ps} className="text-amber-300">△ {ps} (Developing foundation)</p>
                       ))}
                     </div>
+                    {(opp.missing_skills?.length > 0 || opp.partial_skills?.length > 0) && (
+                      <button
+                        onClick={() => openCareerAssistant(opp.role_id)}
+                        className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold text-brand-400 hover:text-brand-300 transition"
+                      >
+                        <Icon name="sparkles" className="size-3" />
+                        Ask assistant how to bridge these gaps &rarr;
+                      </button>
+                    )}
                   </div>
 
                   <div className="rounded-2xl border border-white/5 bg-ink-950/40 p-4">
@@ -322,7 +339,16 @@ export default function EmployeePortal() {
                     </strong>
                   </div>
 
-                  <div className="flex gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={() => openCareerAssistant(opp.role_id)}
+                      className="rounded-xl border border-brand-500/30 bg-brand-500/10 px-3.5 py-2 font-semibold text-brand-300 hover:bg-brand-500/20 transition flex items-center gap-1.5"
+                      title="Consult AI Assistant about this role match"
+                    >
+                      <Icon name="sparkles" className="size-3.5" />
+                      Ask Assistant
+                    </button>
+
                     <button
                       onClick={() => declineMutation.mutate(opp.role_id)}
                       disabled={declineMutation.isPending || opp.decision_status === "employee_declined"}
@@ -406,11 +432,20 @@ export default function EmployeePortal() {
         {/* Learning Roadmap Tab (§54) */}
         {activeTab === "learning" && (
           <div className="rounded-3xl border border-white/10 bg-ink-900/60 p-6 sm:p-8 space-y-6">
-            <div>
-              <h3 className="font-display text-lg font-bold text-white">Continuous Upskilling Roadmap</h3>
-              <p className="mt-1 text-xs text-slate-400">
-                Complete curated modules to acquire verified skills and upgrade your match score for emerging roles.
-              </p>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h3 className="font-display text-lg font-bold text-white">Continuous Upskilling Roadmap</h3>
+                <p className="mt-1 text-xs text-slate-400">
+                  Complete curated modules to acquire verified skills and upgrade your match score for emerging roles.
+                </p>
+              </div>
+              <button
+                onClick={() => openCareerAssistant()}
+                className="inline-flex items-center gap-2 rounded-xl border border-brand-500/30 bg-brand-500/10 px-4 py-2 text-xs font-semibold text-brand-300 hover:bg-brand-500/20 transition"
+              >
+                <Icon name="sparkles" className="size-3.5" />
+                Ask Assistant About Upskilling
+              </button>
             </div>
 
             <div className="space-y-4">
@@ -450,6 +485,30 @@ export default function EmployeePortal() {
           </div>
         )}
       </main>
+
+      {/* Floating Career Assistant Button */}
+      {!isChatOpen && (
+        <button
+          onClick={() => openCareerAssistant()}
+          className="fixed bottom-6 right-6 z-40 flex items-center gap-2.5 rounded-full bg-gradient-to-r from-brand-600 via-brand-500 to-accent-500 px-5 py-3.5 font-semibold text-white shadow-xl shadow-brand-950/50 hover:scale-105 hover:shadow-2xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2 focus:ring-offset-ink-950 cursor-pointer"
+          title="Open AI Career Assistant"
+        >
+          <span className="relative flex size-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full size-2.5 bg-emerald-500"></span>
+          </span>
+          <Icon name="sparkles" className="size-4 text-accent-200" />
+          <span className="text-sm tracking-wide">Career Assistant</span>
+        </button>
+      )}
+
+      {/* Career Assistant Chatbot Component */}
+      <EmployeeCareerChatbot
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        selectedRoleId={chatRoleId}
+        onClearRoleContext={() => setChatRoleId(null)}
+      />
     </div>
   );
 }

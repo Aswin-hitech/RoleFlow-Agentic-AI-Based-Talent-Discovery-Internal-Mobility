@@ -1,0 +1,76 @@
+# ==============================================================================
+# RoleFlow — Docker Compose Specification (Architectural Template / Scaffolding)
+# ==============================================================================
+# IMPORTANT NOTICE:
+# This Docker Compose file is intentionally UNCONFIGURED and NOT INTEGRATED
+# for active system execution. The RoleFlow application runs natively:
+#
+#   Backend : python backend/app.py       (Port 5000)
+#   Frontend: npm run dev                 (Port 5173)
+#
+# This file serves purely as an architectural blueprint for future enterprise
+# containerized deployments. Redis has been removed from the stack.
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  # --- RoleFlow Backend Service (Scaffolding Template) ---
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: roleflow-backend
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - PORT=5000
+      - DATABASE_URL=postgresql+psycopg://roleflow:roleflow_secure_password@postgres:5432/roleflow_db
+      - MONGODB_URI=mongodb://mongodb:27017/roleflow
+      - JWT_SECRET_KEY=roleflow-jwt-insecure-secret-key-change-in-prod
+      - SEED_ON_STARTUP=false
+    depends_on:
+      - postgres
+      - mongodb
+    restart: "no"
+
+  # --- RoleFlow Frontend Service (Scaffolding Template) ---
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: roleflow-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: "no"
+
+  # --- PostgreSQL with pgvector (Template) ---
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: roleflow-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: roleflow
+      POSTGRES_PASSWORD: roleflow_secure_password
+      POSTGRES_DB: roleflow_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: "no"
+
+  # --- MongoDB (Template) ---
+  mongodb:
+    image: mongo:7.0
+    container_name: roleflow-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    restart: "no"
+
+volumes:
+  postgres_data:
+  mongo_data:

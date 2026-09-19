@@ -8,6 +8,11 @@ from ..models import Course, Employee, EmployeeSkill, Role, RoleCandidate, Trans
 from ..agents.employee_intelligence import analyze_employee_profile
 from ..agents.skill_gap import generate_skill_gap_report
 from ..agents.learning import generate_learning_roadmap
+from ..services.employee_chat import (
+    handle_employee_chat,
+    get_employee_grounded_context,
+    _generate_suggestion_chips,
+)
 
 employee_bp = Blueprint("employee", __name__)
 
@@ -265,4 +270,53 @@ def mark_learning_complete(course_id: str):
     return jsonify(
         success=True,
         message=f"Course completed! '{skill_name}' is now marked as a VERIFIED skill on your profile with updated evidence.",
+    )
+
+
+@employee_bp.post("/chat")
+@jwt_required()
+def employee_chat():
+    """Employee AI Career Chatbot endpoint with strictly authenticated identity."""
+    emp_id = _get_current_employee_id()
+    data = request.get_json(silent=True) or {}
+    message = (data.get("message") or "").strip()
+    if not message:
+        return jsonify(error="bad_request", message="Message cannot be empty."), 400
+
+    # Enforce bounded message length
+    message = message[:4000]
+    role_id = data.get("role_id")
+    history = data.get("history") or []
+    conversation_id = data.get("conversation_id")
+
+    reply = handle_employee_chat(
+        emp_id=emp_id,
+        message=message,
+        role_id=role_id,
+        history=history,
+        conversation_id=conversation_id,
+    )
+    return jsonify(reply)
+
+
+@employee_bp.get("/chat/context")
+@jwt_required()
+def employee_chat_context():
+    """Retrieve grounded context summary and dynamic quick action chips for active role."""
+    emp_id = _get_current_employee_id()
+    role_id = request.args.get("role_id")
+    ctx = get_employee_grounded_context(emp_id, role_id=role_id)
+    role = ctx.get("active_role")
+    emp_info = ctx.get("employee") or {}
+    chips = _generate_suggestion_chips(ctx)
+    return jsonify(
+        employee_name=emp_info.get("full_name"),
+        employee_id=emp_info.get("id"),
+        role_id=role["id"] if role else None,
+        role_title=role["title"] if role else None,
+        fit_score=role.get("fit_score") if role else None,
+        readiness_score=role.get("readiness_score") if role else None,
+        suggested_actions=chips,
+        suggested_chips=chips,
+        sources=ctx.get("sources", []),
     )

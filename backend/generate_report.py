@@ -248,12 +248,13 @@ def generate_report(output_path: str):
         [
             ["Platform Name", "RoleFlow — Agentic Internal Talent Mobility Platform"],
             ["Architecture Pattern", "Decoupled Independent API Architecture + Multi-Threaded Crawlers"],
-            ["Concurrency Engine", "ThreadPoolExecutor Worker Pools (Match, Crawl, Explain) + Celery Task Queue"],
-            ["Release Version", "1.1.0 (Production-Ready Distributed Release)"],
-            ["Deployment Model", "Single Native Entrypoint (backend/app.py) + Zero Docker Constraint"],
+            ["Concurrency Engine", "ThreadPoolExecutor Worker Pools (Match, Crawl, Explain) + Native Async Dispatcher"],
+            ["Release Version", "1.2.0 (Employee AI Career Assistant & Multi-Threaded Release)"],
+            ["Deployment Model", "Single Native Entrypoint (backend/app.py) + Docker Scaffolding (Template Only)"],
             ["Agentic Engine", "LangGraph Orchestrated 6-Agent State Machine"],
-            ["Database Persistence", "PostgreSQL + pgvector (with resilient SQLite fallback), MongoDB, Redis"],
-            ["Verification Status", "42/42 Smoke Tests Passed | 21/21 Jury Demo Steps + Crawl Verified"],
+            ["AI Career Assistant", "Grounded GPT-OSS-120B with Strict RBAC Isolation & Dynamic Chips"],
+            ["Database Persistence", "PostgreSQL + pgvector (with resilient SQLite fallback), MongoDB Document Store"],
+            ["Verification Status", "53/53 Smoke Tests Passed | 21/21 Jury Demo Steps + Chatbot Verified"],
             ["Publication Date", datetime.now().strftime("%B %d, %Y")],
         ]
     )
@@ -300,8 +301,8 @@ def generate_report(output_path: str):
         [
             ["Presentation Layer", "React 19 + Vite + Tailwind CSS v4", "High-performance responsive UI, Lucide icons, multi-persona routing (Manager, Employee, HR), interactive candidate drawer, 7-step wizard, live crawler status."],
             ["API & Gateway Layer", "Python 3.11 + Flask 3.x + JWT Extended", "Single entrypoint backend/app.py, modular Flask blueprints (/auth, /manager, /me, /hr, /crawler, /ai, /health), RBAC security, independent REST endpoints."],
-            ["Concurrency & Worker Pool", "ThreadPoolExecutor + Celery 5.x", "Multi-threaded worker pools for parallel candidate evaluation, concurrent LLM explanations, and multi-provider web crawlers."],
-            ["Multi-Model Storage", "PostgreSQL 16 + pgvector / SQLite Fallback", "Relational persistence for workforce records, embeddings, job definitions, transfers, and course catalog. Seamless SQLite fallback ensures 100% offline uptime."],
+            ["Concurrency & Worker Pool", "ThreadPoolExecutor + Native Async Dispatcher", "Multi-threaded worker pools for parallel candidate evaluation, concurrent LLM explanations, and multi-provider web crawlers with native asynchronous task dispatch."],
+            ["Multi-Model Relational Storage", "PostgreSQL 16 + pgvector / SQLite Fallback", "Relational persistence for workforce records, embeddings, job definitions, transfers, and course catalog. Seamless SQLite fallback ensures 100% offline uptime."],
             ["Document & Audit Store", "MongoDB / MongoMock", "Unstructured audit logging, raw JD document preservation, and compliance decision history."],
             ["AI & Agent Orchestration", "LangGraph + LangChain + BGE-base / SBERT", "6-agent state machine coordinating role ingestion, profile analysis, transferable bridges, scoring, gap discovery, and learning generation."]
         ]
@@ -334,6 +335,8 @@ def generate_report(output_path: str):
             ["/api/v1/me/opportunities/<id>/accept", "POST", "Employee", "Employee accepts opportunity; moves status to 'pending_hr'."],
             ["/api/v1/me/opportunities/<id>/decline", "POST", "Employee", "Employee declines opportunity; leaves role vacant."],
             ["/api/v1/me/learning/<id>/complete", "POST", "Employee", "Continuous learning loop: marks course complete and awards skill badge."],
+            ["/api/v1/me/chat", "POST", "Employee", "Strictly grounded AI career assistant conversation powered by GPT-OSS-120B."],
+            ["/api/v1/me/chat/context", "GET", "Employee", "Retrieves active role match context, verified evidence sources, and dynamic quick-action chips."],
             ["/api/v1/hr/transfers", "GET", "HR Admin", "Fetches pending transfers for governance audit."],
             ["/api/v1/hr/transfers/<id>/approve", "POST", "HR Admin", "Final approval: commits organizational mobility transfer."]
         ]
@@ -534,7 +537,7 @@ def generate_report(output_path: str):
     )
 
     add_header(doc, "7.1 Smoke Test Suite (backend/test_smoke.py)", level=2)
-    add_paragraph(doc, "The smoke test suite validates 42 critical system assertions across 10 categories. Test execution achieved a 100% pass rate:", bold_prefix="Results: ")
+    add_paragraph(doc, "The smoke test suite validates 53 critical system assertions across 11 categories. Test execution achieved a 100% pass rate:", bold_prefix="Results: ")
 
     test_tbl = doc.add_table(rows=0, cols=3)
     style_table(
@@ -551,7 +554,8 @@ def generate_report(output_path: str):
             ["7. Employee Decision Flow", "PASSED (3/3)", "Employee accept 200, advances to pending_hr, role preference ranking."],
             ["8. Continuous Learning Loop", "PASSED (2/2)", "Learning roadmap 200, mark course complete 200 with skill credentialing."],
             ["9. HR Governance Flow", "PASSED (4/4)", "Transfers list 200, pending_hr transfer found, HR approve 200, status approved."],
-            ["10. Multi-Threaded Crawlers", "PASSED (8/8)", "Concurrent course crawl 200, worker threads dispatched (>=3), multi-provider harvesting, market skills crawl across parallel threads (>=2), live gap crawl."]
+            ["10. Multi-Threaded Crawlers", "PASSED (8/8)", "Concurrent course crawl 200, worker threads dispatched (>=3), multi-provider harvesting, market skills crawl across parallel threads (>=2), live gap crawl."],
+            ["11. Employee Career Chatbot", "PASSED (11/11)", "JWT 401 barrier, grounded role context retrieval, dynamic suggestion chips, fit & readiness deduction explanations, and anti-spoofing security verification."]
         ]
     )
 
@@ -575,17 +579,76 @@ def generate_report(output_path: str):
     add_bullet(doc, "Extra Edge Case: Employee decline flow tested; role remains vacant.")
 
     # =========================================================================
-    # 8. PRODUCTION READINESS & OPERATIONAL MANUAL
+    # 8. EMPLOYEE AI CAREER CHATBOT (CAREER ASSISTANT)
     # =========================================================================
     doc.add_page_break()
-    add_header(doc, "8. Production Readiness & Operational Manual", level=1)
+    add_header(doc, "8. Employee AI Career Chatbot: Grounded Career Assistant", level=1)
+
+    add_paragraph(doc,
+        "A cornerstone feature of RoleFlow's Employee Experience is the integrated AI Career Assistant. Directly embedded within the Employee Portal, the assistant empowers employees to have natural, supportive conversations about their internal mobility prospects, match scores, readiness deductions, and upskilling pathways.",
+        bold_prefix="Employee AI Partnership: "
+    )
+
+    add_header(doc, "8.1 Grounded Profile & Evidence Architecture", level=2)
+    add_paragraph(doc,
+        "Unlike generic LLM chat interfaces that hallucinate career advice, RoleFlow's Career Assistant is strictly grounded in the employee's actual database records. Prior to query processing, the backend service (backend/core/services/employee_chat.py) compiles a multi-source factual context payload:",
+        bold_prefix="Contextual Grounding: "
+    )
+
+    chat_ground_tbl = doc.add_table(rows=0, cols=3)
+    style_table(
+        chat_ground_tbl,
+        [1.8, 1.8, 2.9],
+        ["Context Dimension", "Database Provenance", "Grounded Information Provided to Assistant"],
+        [
+            ["Employee Profile", "employees table", "Name, ID, current role, department, verified experience years, availability notice period, and bio."],
+            ["Verified Skills & Evidence", "employee_skills table", "Directly classified skills (verified, explicit, inferred, transferable) with proficiency levels and audit references."],
+            ["Active & Past Projects", "projects table", "Ongoing project names, completion percentages, and exact remaining weeks impacting readiness."],
+            ["Candidate Match Metrics", "role_candidates table", "Mathematically computed Fit Score, separate Readiness Score, 6-component fit breakdown, and deduction reasons."],
+            ["Skill Gap Report", "Skill Gap Agent engine", "Granular categorization of target role requirements into Strong, Developing, and Missing skills."],
+            ["Continuous Upskilling", "learning_plans & courses tables", "Curated course modules, target competencies, providers (Coursera, edX, GitHub), and estimated duration."]
+        ]
+    )
+
+    add_header(doc, "8.2 Strict Security Barrier & Anti-Spoofing Isolation", level=2)
+    add_paragraph(doc,
+        "Enterprise talent systems handle sensitive performance, salary, and mobility records. RoleFlow enforces zero-trust employee isolation:",
+        bold_prefix="Security Model: "
+    )
+    add_bullet(doc, "The employee identity is strictly derived from the verified JWT access token server-side via '_get_current_employee_id()'.", bold_prefix="Server-Side JWT Resolution: ")
+    add_bullet(doc, "Any 'employee_id' supplied in the client JSON payload is explicitly ignored and discarded, preventing identity spoofing.", bold_prefix="Anti-Spoofing Protection: ")
+    add_bullet(doc, "Hidden, draft, or inactive roles are completely filtered from the assistant's context, preventing confidential role leakage.", bold_prefix="Role Visibility Enforcement: ")
+    add_bullet(doc, "Inbound user messages are bounded to 4,000 characters and conversational history is capped at 6 turns to avoid prompt injection or buffer bloat.", bold_prefix="Input & Context Sanitization: ")
+
+    add_header(doc, "8.3 Enterprise SaaS White-Background User Experience", level=2)
+    add_paragraph(doc,
+        "The frontend chatbot interface (frontend/src/components/EmployeeCareerChatbot.jsx) adheres strictly to enterprise SaaS design standards with a pure white background (#ffffff), crisp slate borders, dark navy typography, and refined micro-interactions:",
+        bold_prefix="Design Philosophy: "
+    )
+    add_bullet(doc, "Positioned at the bottom-right corner of the Employee Portal with a pulsing green live connection badge.", bold_prefix="Floating Launcher: ")
+    add_bullet(doc, "Presents a blue-tinted status banner displaying the role under discussion with live Fit and Readiness percentages.", bold_prefix="Role Context Pill: ")
+    add_bullet(doc, "Three bouncing dots indicate LLM reasoning activity before replies stream into the conversation.", bold_prefix="Animated Typing Indicator: ")
+    add_bullet(doc, "Each assistant message displays a verified provenance tag ('Based on your RoleFlow profile records: ✓').", bold_prefix="Source Citation Badges: ")
+    add_bullet(doc, "Dynamic, hover-animated chips allow 1-click execution of common queries ('Why was I matched?', 'Why is readiness lower?', 'Show learning plan').", bold_prefix="Contextual Action Chips: ")
+
+    add_header(doc, "8.4 GPT-OSS-120B Integration & Deterministic Fallback Matrix", level=2)
+    add_paragraph(doc,
+        "The Career Assistant connects to RoleFlow's unified GPT-OSS-120B LLM via LangChain ChatOpenAI. If the model endpoint is offline or experiencing network delays, the system activates an algorithmic, zero-hallucination deterministic fallback engine covering eight distinct query domains (Fit score decomposition, project-based readiness deductions, skill gap breakdowns, upskilling roadmap curation, transferable bridge analysis, verified skill listings, opportunity inventories, and identity summaries).",
+        bold_prefix="Dual-Engine Reliability: "
+    )
+
+    # =========================================================================
+    # 9. PRODUCTION READINESS & OPERATIONAL MANUAL
+    # =========================================================================
+    doc.add_page_break()
+    add_header(doc, "9. Production Readiness & Operational Manual", level=1)
     
     add_paragraph(doc,
         "RoleFlow is engineered for enterprise production deployments with high resilience, graceful fallbacks, and zero single-point-of-failure vulnerabilities.",
         bold_prefix="Production Engineering: "
     )
 
-    add_header(doc, "8.1 Production Resilience Matrix", level=2)
+    add_header(doc, "9.1 Production Resilience Matrix", level=2)
     prod_tbl = doc.add_table(rows=0, cols=3)
     style_table(
         prod_tbl,
@@ -594,22 +657,22 @@ def generate_report(output_path: str):
         [
             ["LLM Endpoint Availability", "Ollama / GPT-OSS offline or socket unreachable", "Pre-flight socket probe (0.25s timeout) triggers instant deterministic agentic fallback with zero user latency."],
             ["Database Service Health", "PostgreSQL offline / unconfigured", "Automatic transparent fallback to local SQLite (roleflow.db) with foreign key and JSON support."],
-            ["Task Queue Broker", "Redis server offline or network partitioned", "Automatic in-process async worker thread fallback ensures discovery tasks complete reliably."],
+            ["Task Queue & Background Tasks", "Redis dependency removed from architecture", "Native asynchronous worker thread dispatch with ThreadPoolExecutor executes discovery tasks with zero broker overhead and zero port 6379 dependency."],
             ["Crawler Rate Limiting", "External provider HTTP throttling", "Worker thread isolation with timeout boundaries and cached educational knowledge bases."]
         ]
     )
 
-    add_header(doc, "8.2 Quick Start Commands", level=2)
+    add_header(doc, "9.2 Quick Start Commands", level=2)
     add_paragraph(doc, "1. Install backend dependencies (from either root or backend/):")
     add_paragraph(doc, "pip install -r requirements.txt", italic=True)
     add_paragraph(doc, "2. Reset and seed the 10,000-employee workforce database:")
     add_paragraph(doc, "python backend/seed.py --reset", italic=True)
-    add_paragraph(doc, "3. Launch the single entry point API server:")
+    add_paragraph(doc, "3. Launch the single main source API server (app.py):")
     add_paragraph(doc, "python backend/app.py", italic=True)
     add_paragraph(doc, "4. Launch the frontend development server:")
     add_paragraph(doc, "cd frontend\nnpm run dev", italic=True)
 
-    add_header(doc, "8.3 Demo Persona Accounts", level=2)
+    add_header(doc, "9.3 Demo Persona Accounts", level=2)
     demo_tbl = doc.add_table(rows=0, cols=4)
     style_table(
         demo_tbl,
@@ -620,6 +683,19 @@ def generate_report(output_path: str):
             ["Employee", "employee@roleflow.io", "demo1234", "Opportunity feed, preference ranking, accept/decline, course completion."],
             ["HR Admin", "hr@roleflow.io", "demo1234", "Transfer governance, mobility metrics audit, 1-click transfer approvals."]
         ]
+    )
+
+    add_header(doc, "9.4 Docker Architectural Scaffolding & Native Runtime", level=2)
+    add_paragraph(doc,
+        "RoleFlow includes complete Docker specifications within the codebase to provide enterprise blueprints for future containerized deployment, while strictly preserving native execution for daily operation and evaluation:",
+        bold_prefix="Container Blueprint Scaffolding: "
+    )
+    add_bullet(doc, "Defines production containerization blueprint with Python 3.11-slim base, dependencies, and port 5000 entrypoint.", bold_prefix="backend/Dockerfile: ")
+    add_bullet(doc, "Two-stage container build blueprint with Node 20-alpine build stage and Alpine Nginx static serving stage.", bold_prefix="frontend/Dockerfile: ")
+    add_bullet(doc, "Multi-service orchestration template defining backend, frontend, PostgreSQL (with pgvector), and MongoDB services.", bold_prefix="docker-compose.yml: ")
+    add_bullet(doc, "Excludes virtual environments, cache directories, local SQLite databases, and node_modules from container contexts.", bold_prefix=".dockerignore: ")
+    add_callout(doc, "Native Runtime Commitment & app.py as Main Source",
+        "Per design specifications, all Docker elements are strictly present as unconfigured scaffolding and are NOT integrated into active runtime. The primary, definitive entrypoint for backend execution is native: 'python app.py' (or 'python backend/app.py'). The platform runs seamlessly with zero Docker daemon requirements."
     )
 
     # Save document

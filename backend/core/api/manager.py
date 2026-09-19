@@ -15,17 +15,6 @@ from ..tasks.discovery import run_discovery_task
 manager_bp = Blueprint("manager", __name__)
 
 
-def _broker_reachable(timeout: float = 0.5) -> bool:
-    try:
-        parsed = urlparse(celery_app.conf.broker_url)
-        host = parsed.hostname or "localhost"
-        port = parsed.port or 6379
-        with socket.create_connection((host, port), timeout=timeout):
-            return True
-    except Exception:
-        return False
-
-
 @manager_bp.get("/roles")
 @jwt_required()
 def list_roles():
@@ -96,14 +85,8 @@ def create_role():
     db.session.add(match_run)
     db.session.commit()
 
-    if _broker_reachable():
-        try:
-            run_discovery_task.delay(role_id, run_id)
-        except Exception:
-            threading.Thread(target=run_discovery_task, args=(role_id, run_id), daemon=True).start()
-    else:
-        # Seamless async fallback so discovery completes without Redis
-        threading.Thread(target=run_discovery_task, args=(role_id, run_id), daemon=True).start()
+    # Native asynchronous candidate discovery dispatch
+    threading.Thread(target=run_discovery_task, args=(role_id, run_id), daemon=True).start()
 
     return jsonify(role=role.to_dict(), match_run_id=run_id), 201
 
@@ -172,14 +155,7 @@ def trigger_discovery(role_id: str):
     db.session.add(match_run)
     db.session.commit()
 
-    if _broker_reachable():
-        try:
-            task = run_discovery_task.delay(role_id, run_id)
-            return jsonify(queued=True, task_id=task.id, match_run_id=run_id, role_id=role_id), 202
-        except Exception:
-            pass
-
-    # Seamless background fallback
+    # Native asynchronous candidate discovery dispatch
     threading.Thread(target=run_discovery_task, args=(role_id, run_id), daemon=True).start()
     return jsonify(queued=True, match_run_id=run_id, role_id=role_id), 202
 

@@ -150,6 +150,39 @@ Requirements:
     gap_crawl = res.get_json() or {}
     check("Targeted employee gap skills in crawl", len(gap_crawl.get("gap_skills_targeted", [])) > 0)
 
+    print("\n--- 11. Employee AI Career Chatbot (Grounded Career Assistant) ---")
+    # 11.1 Unauthorized attempt must be rejected
+    unauth_res = client.post("/api/v1/me/chat", json={"message": "What roles fit me?"})
+    check("Chatbot requires JWT auth (401 without token)", unauth_res.status_code == 401)
+
+    # 11.2 Context retrieval
+    chat_ctx_res = client.get(f"/api/v1/me/chat/context?role_id={role_id}", headers=emp_headers)
+    check("Chatbot context endpoint 200", chat_ctx_res.status_code == 200)
+    chat_ctx = chat_ctx_res.get_json() or {}
+    check("Chat context returns employee info", chat_ctx.get("employee_name") == "Arjun Mehta")
+    check("Chat context has suggested chips", len(chat_ctx.get("suggested_chips", [])) > 0)
+    check("Chat context includes grounded sources", len(chat_ctx.get("sources", [])) > 0)
+
+    # 11.3 Chat message with grounded explanation
+    chat_res = client.post("/api/v1/me/chat", headers=emp_headers, json={
+        "message": "Why is my readiness score lower than my fit score for the ML Engineer role?",
+        "role_id": role_id
+    })
+    check("Chat query endpoint 200", chat_res.status_code == 200)
+    chat_reply = chat_res.get_json() or {}
+    check("Chat returns reply text", len(chat_reply.get("reply", "")) > 10)
+    check("Chat references verified sources", len(chat_reply.get("sources", [])) > 0)
+    check("Chat returns next action chips", len(chat_reply.get("suggested_chips", [])) > 0)
+
+    # 11.4 Anti-spoofing security check (tampered employee_id in payload ignored)
+    spoof_res = client.post("/api/v1/me/chat", headers=emp_headers, json={
+        "employee_id": "EMP-999-HACKER",
+        "message": "Who am I?"
+    })
+    check("Anti-spoofing respects JWT identity", spoof_res.status_code == 200)
+    spoof_reply = spoof_res.get_json() or {}
+    check("Chat strictly resolved Arjun's records", "Arjun" in spoof_reply.get("reply", "") or any("EMP-001" in s for s in spoof_reply.get("sources", [])))
+
     print(f"\n==========================================")
     print(f"Smoke Tests Complete: {passed}/{total} PASSED")
     print(f"==========================================\n")

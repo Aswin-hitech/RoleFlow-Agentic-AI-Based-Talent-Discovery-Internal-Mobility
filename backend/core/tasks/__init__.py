@@ -1,56 +1,44 @@
+"""RoleFlow — Native Asynchronous Task Runner.
+
+Executes background candidate matching and AI tasks natively using
+Python's built-in threading and ThreadPoolExecutor without external Redis/Celery daemons.
+"""
+
 import logging
-from ..config import Config
+import threading
+import uuid
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
-try:
-    from celery import Celery
 
-    celery_app = Celery(
-        "roleflow",
-        broker=Config.CELERY_BROKER_URL,
-        backend=Config.CELERY_RESULT_BACKEND,
-        include=["core.tasks.discovery"],
-    )
+def dispatch_async(fn: Callable, *args: Any, **kwargs: Any) -> threading.Thread:
+    """Dispatch a background task cleanly in a daemon thread."""
+    thread = threading.Thread(target=fn, args=args, kwargs=kwargs, daemon=True)
+    thread.start()
+    return thread
 
-    celery_app.conf.update(
-        task_track_started=True,
-        task_serializer="json",
-        result_serializer="json",
-        accept_content=["json"],
-        timezone="UTC",
-        enable_utc=True,
-        broker_connection_retry=False,
-        broker_connection_max_retries=1,
-        broker_transport_options={"connect_timeout": 3},
-        result_backend_transport_options={"socket_connect_timeout": 3},
-    )
-except ImportError:
-    logger.info("Celery not installed; using local asynchronous task shim")
 
-    class DummyTask:
-        def __init__(self, fn):
-            self.fn = fn
-            self.id = "local-task-01"
+# Backward compatibility shim for legacy task wrappers
+class NativeTask:
+    def __init__(self, fn: Callable):
+        self.fn = fn
+        self.id = "native-task"
 
-        def __call__(self, *args, **kwargs):
-            return self.fn(*args, **kwargs)
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        return self.fn(*args, **kwargs)
 
-        def delay(self, *args, **kwargs):
-            import threading
-            import uuid
-            self.id = f"task-{uuid.uuid4().hex[:8]}"
-            t = threading.Thread(target=self.fn, args=args, kwargs=kwargs, daemon=True)
-            t.start()
-            return self
+    def delay(self, *args: Any, **kwargs: Any) -> "NativeTask":
+        self.id = f"task-{uuid.uuid4().hex[:8]}"
+        dispatch_async(self.fn, *args, **kwargs)
+        return self
 
-    class DummyCelery:
-        def __init__(self):
-            self.conf = type("Conf", (), {"broker_url": Config.CELERY_BROKER_URL})()
 
-        def task(self, *args, **kwargs):
-            def decorator(fn):
-                return DummyTask(fn)
-            return decorator
+class NativeTaskManager:
+    def task(self, *args: Any, **kwargs: Any) -> Callable:
+        def decorator(fn: Callable) -> NativeTask:
+            return NativeTask(fn)
+        return decorator
 
-    celery_app = DummyCelery()
+
+celery_app = NativeTaskManager()

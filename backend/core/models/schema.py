@@ -53,6 +53,10 @@ class Employee(db.Model):
     embedding = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), default=_utcnow)
 
+    skills = db.relationship("EmployeeSkill", backref="employee", cascade="all, delete-orphan", lazy=True)
+    projects = db.relationship("Project", backref="employee", cascade="all, delete-orphan", lazy=True)
+    certifications = db.relationship("Certification", backref="employee", cascade="all, delete-orphan", lazy=True)
+
     def to_dict(self):
         return {
             "id": self.id,

@@ -1,15 +1,13 @@
-"""RoleFlow — Single Backend Executable Entry Point.
+"""RoleFlow — Primary Backend Executable Entry Point.
+
+app.py is our main source for the RoleFlow backend.
 
 Run API:
     python app.py
-
-Run Celery worker:
-    celery -A app.celery_app worker --loglevel=info
 """
 
 import os
 from core import create_app
-from core.tasks import celery_app
 
 app = create_app()
 

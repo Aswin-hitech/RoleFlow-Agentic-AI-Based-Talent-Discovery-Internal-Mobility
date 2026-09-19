@@ -13,10 +13,18 @@ def _bool(name: str, default: str = "0") -> bool:
 
 
 def _format_postgres_url(url: str) -> str:
+    has_psycopg3 = False
+    try:
+        import psycopg
+        has_psycopg3 = True
+    except ImportError:
+        pass
+
+    driver = "postgresql+psycopg://" if has_psycopg3 else "postgresql+psycopg2://"
     if url.startswith("postgres://"):
-        url = url.replace("postgres://", "postgresql+psycopg://", 1)
-    elif url.startswith("postgresql://") and not url.startswith("postgresql+psycopg://"):
-        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+        return url.replace("postgres://", driver, 1)
+    elif url.startswith("postgresql://") and not ("+psycopg" in url or "+psycopg2" in url):
+        return url.replace("postgresql://", driver, 1)
     return url
 
 
@@ -25,19 +33,27 @@ def _database_url() -> str:
         "DATABASE_URL",
         "postgresql+psycopg://roleflow:roleflow@localhost:5432/roleflow",
     )
-    # If explicitly postgres, probe connection quickly
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sqlite_fallback = f"sqlite:///{os.path.join(base_dir, 'roleflow.db')}"
+
+    # If explicitly postgres, probe connection quickly and verify driver
     if "postgres" in raw:
         try:
-            parsed = urlparse(raw.replace("+psycopg", ""))
+            parsed = urlparse(raw.replace("+psycopg", "").replace("+psycopg2", ""))
             host = parsed.hostname or "localhost"
             port = parsed.port or 5432
+            # Quick probe
             with socket.create_connection((host, port), timeout=0.5):
-                return _format_postgres_url(raw)
-        except OSError:
+                formatted = _format_postgres_url(raw)
+                # Verify DBAPI driver can be imported
+                if "+psycopg://" in formatted:
+                    import psycopg
+                else:
+                    import psycopg2
+                return formatted
+        except Exception:
             # Fallback to local SQLite so the app starts without crashing (§50)
-            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            db_path = os.path.join(base_dir, "roleflow.db")
-            return f"sqlite:///{db_path}"
+            return sqlite_fallback
     return raw
 
 
@@ -63,13 +79,6 @@ class Config:
     # MongoDB
     MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
     MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "roleflow")
-
-    # Redis
-    REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-
-    # Celery
-    CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/1")
-    CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/2")
 
     # JWT
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "change-me-secret-key-roleflow")
