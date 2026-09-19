@@ -1,53 +1,24 @@
 # ==============================================================================
-# RoleFlow — Docker Compose Specification (Architectural Template / Scaffolding)
+# RoleFlow — Turnkey Docker Compose Specification
 # ==============================================================================
-# IMPORTANT NOTICE:
-# This Docker Compose file is intentionally UNCONFIGURED and NOT INTEGRATED
-# for active system execution. The RoleFlow application runs natively:
+# Single-Command Production / Staging Deployment:
+#   docker compose up --build
 #
+# Services Orchestrated:
+#   - roleflow-postgres : PostgreSQL 16 with pgvector extension (Port 5432)
+#   - roleflow-mongo    : MongoDB 7.0 Document Store (Port 27017)
+#   - roleflow-backend  : Flask 3.x REST API + LangGraph Agents (Port 5000)
+#   - roleflow-frontend : React 19 + Nginx Reverse Proxy (Port 3000 -> 80)
+#
+# Native Execution Alternative:
 #   Backend : python backend/app.py       (Port 5000)
 #   Frontend: npm run dev                 (Port 5173)
-#
-# This file serves purely as an architectural blueprint for future enterprise
-# containerized deployments. Redis has been removed from the stack.
 # ==============================================================================
 
 version: '3.8'
 
 services:
-  # --- RoleFlow Backend Service (Scaffolding Template) ---
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: roleflow-backend
-    ports:
-      - "5000:5000"
-    environment:
-      - FLASK_ENV=production
-      - PORT=5000
-      - DATABASE_URL=postgresql+psycopg://roleflow:roleflow_secure_password@postgres:5432/roleflow_db
-      - MONGODB_URI=mongodb://mongodb:27017/roleflow
-      - JWT_SECRET_KEY=roleflow-jwt-insecure-secret-key-change-in-prod
-      - SEED_ON_STARTUP=false
-    depends_on:
-      - postgres
-      - mongodb
-    restart: "no"
-
-  # --- RoleFlow Frontend Service (Scaffolding Template) ---
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: roleflow-frontend
-    ports:
-      - "3000:80"
-    depends_on:
-      - backend
-    restart: "no"
-
-  # --- PostgreSQL with pgvector (Template) ---
+  # --- PostgreSQL with pgvector ---
   postgres:
     image: pgvector/pgvector:pg16
     container_name: roleflow-postgres
@@ -59,9 +30,14 @@ services:
       POSTGRES_DB: roleflow_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    restart: "no"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U roleflow -d roleflow_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
-  # --- MongoDB (Template) ---
+  # --- MongoDB Document Store ---
   mongodb:
     image: mongo:7.0
     container_name: roleflow-mongo
@@ -69,7 +45,52 @@ services:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
-    restart: "no"
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --eval 'db.runCommand(\"ping\").ok' localhost:27017/test --quiet"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # --- RoleFlow Backend Service ---
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: roleflow-backend
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - ROLEFLOW_ENV=production
+      - PORT=5000
+      - DATABASE_URL=postgresql+psycopg://roleflow:roleflow_secure_password@postgres:5432/roleflow_db
+      - MONGODB_URI=mongodb://mongodb:27017/roleflow
+      - JWT_SECRET_KEY=roleflow-prod-jwt-secure-entropy-key-2026-x99
+      - SECRET_KEY=roleflow-prod-session-entropy-secret-key-2026-x99
+      - ALLOW_DEMO_USERS=true
+      - LLM_PROVIDER=ollama
+      - LLM_BASE_URL=http://host.docker.internal:11434/v1
+      - LLM_MODEL=gpt-oss-120b
+      - SEED_ON_STARTUP=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # --- RoleFlow Frontend Service (Nginx Reverse Proxy) ---
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: roleflow-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
 
 volumes:
   postgres_data:

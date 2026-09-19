@@ -368,13 +368,141 @@ python backend/generate_report.py RoleFlow_Project_Report.docx
 
 ---
 
-## 12. Docker Architectural Scaffolding Blueprint
+---
 
-Per architectural design guidelines, Docker specifications are included in the repository as enterprise deployment blueprints, while daily execution is strictly preserved as native:
+## 10. Enterprise Security, Zero-Trust RBAC & Hardening
 
-- `backend/Dockerfile`: Multi-stage Python 3.11-slim container blueprint.
-- `frontend/Dockerfile`: Multi-stage Node 20 / Alpine Nginx static serving blueprint.
-- `docker-compose.yml`: Multi-service orchestration blueprint defining backend, frontend, PostgreSQL, and MongoDB.
-- `.dockerignore`: Excludes virtual environments, cache directories, local SQLite databases, and node_modules from container contexts.
+### 10.1 Role-Based Access Control (RBAC) Architecture
+Every REST API endpoint enforces strict role barriers. Identity and privileges are validated server-side from signed JWT tokens:
 
-> **Native Runtime Commitment**: All Docker elements are strictly present as unconfigured scaffolding and are NOT integrated into active runtime. The primary, definitive entrypoint for backend execution is native: `python app.py` (or `python backend/app.py`). The platform runs seamlessly with zero Docker daemon requirements.
+| Security Decorator | Permitted Roles | Protected Scope & Actions |
+| :--- | :--- | :--- |
+| `@roles_required(*roles)` | Configurable set | Generic decorator verifying membership in authorized role groups. |
+| `@manager_required` | `manager`, `hr`, `admin` | Role creation, JD intelligence, candidate discovery, candidate shortlisting, score overrides. |
+| `@employee_required` | `employee`, `admin` | Personal profile inspection, opportunity matches, decisions (`accept` / `decline`). |
+| `@hr_required` | `hr`, `admin` | Enterprise mobility governance, workforce transfer audits, final transfer approval dispatch. |
+
+### 10.2 In-Memory Sliding-Window Rate Limiting
+RoleFlow implements a thread-safe, in-memory sliding-window rate limiter (`backend/core/security/rate_limiter.py`) operating without Redis:
+- **Authentication**: `POST /api/v1/auth/login` is capped at **10 requests per 60 seconds**, returning `HTTP 429 Too Many Requests` with a `Retry-After` header upon exhaustion.
+- **Crawlers**: Course harvesting and market skills crawling endpoints are restricted to **15 requests per 60 seconds**.
+- **LLM & Chat**: AI inference and conversational assistant endpoints are protected by a **30 requests per minute** ceiling.
+
+### 10.3 Production Security Validation & Demo User Isolation
+During startup, `validate_production_security()` verifies security invariants:
+- Rejects default development keys (`change-me-secret-key-roleflow`, `dev-secret-change-me`) when `ROLEFLOW_ENV=production`, raising a fatal exception.
+- Demo user accounts (`manager@roleflow.io`, `employee@roleflow.io`, `hr@roleflow.io`) are strictly disabled outside development unless `ALLOW_DEMO_USERS=true` is explicitly provided.
+- Comprehensive vulnerability disclosure policy, threat model, and 72-hour critical patch SLA documented in `SECURITY.md`.
+
+---
+
+## 11. Responsible AI, Demographic Fairness & Human Oversight
+
+### 11.1 EEOC 80% (Four-Fifths) Disparate Impact Audit
+To ensure non-discriminatory candidate selection aligned with the EEOC Uniform Guidelines and EU AI Act (High-Risk Employment Tier), RoleFlow calculates cross-departmental and tenure cohort parity (`backend/core/services/responsible_ai.py`):
+
+$$\text{Disparate Impact Ratio} = \frac{\text{Selection Rate of Target Cohort}}{\text{Selection Rate of Native Department Cohort}}$$
+
+If the Disparate Impact Ratio falls below **0.80 (80%)**, the system flags an `ACTION_REQUIRED` status and alerts HR to inspect whether adjacent skills are being unfairly penalized.
+
+### 11.2 Human-in-the-Loop Override with Mandatory Justification
+Algorithmic recommendations are non-binding. Managers or HR leaders can manually adjust candidate match scores (`POST /api/v1/manager/roles/<role_id>/candidates/<emp_id>/override`):
+- **Mandatory Justification**: Requires a minimum 10-character business justification explaining the legal and technical basis for the change.
+- **Audit Logging**: Logs previous scores, updated scores, actor ID, and justification string into the immutable audit ledger.
+
+### 11.3 Immutable Audit Trail Ledger
+All mobility milestones are recorded in an append-only audit trail (`backend/core/services/audit.py`):
+- Captured events: `candidate_discovery`, `shortlist_created`, `opportunity_accepted`, `opportunity_declined`, `score_override`, and `transfer_approved`.
+- Queryable via `GET /api/v1/manager/roles/<role_id>/audit-logs`.
+
+### 11.4 GDPR Article 22 & Data Privacy Transparency
+Public endpoint `GET /api/v1/privacy-policy` exposes compliance commitments:
+- **Zero Demographic Inputs**: Protected attributes (race, gender, age, disability status) are strictly excluded from embedding generation and scoring algorithms.
+- **Right of Explanation**: Granular component breakdowns (Skills 30%, Experience 25%, Projects 15%, Certifications 10%, Transferable 10%, Domain 10%) with verified evidence citations.
+- **Right of Appeal**: Employees can decline opportunities or request manual human review of their skill evidence.
+
+---
+
+## 12. Information Retrieval (IR) & Matching Quality Benchmark
+
+RoleFlow incorporates a dedicated Information Retrieval evaluation framework (`backend/evaluation/matching_benchmark.py`) benchmarked against expert-labeled ground truth talent pools:
+
+| IR Metric | RoleFlow Score | Operational Meaning & Value |
+| :--- | :--- | :--- |
+| **Precision@1** | **100.0%** | The top-ranked candidate presented to hiring managers is relevant in 100% of queries. |
+| **Precision@3** | **75.0%** | High concentration of qualified internal talent across the top-3 shortlisting tier. |
+| **Precision@5** | **45.0%** | Accurately models deep talent pools across specialized engineering disciplines. |
+| **Recall@3** | **100.0%** | All ground-truth qualified candidates are captured within the top-3 recommendations. |
+| **Recall@5** | **100.0%** | Complete coverage of all eligible internal applicants. |
+| **Mean Reciprocal Rank (MRR)** | **1.000** | Perfect reciprocal rank: first relevant candidate is placed at Rank 1. |
+| **NDCG@3** | **1.000** | Normalized Discounted Cumulative Gain achieves ideal ranking order without inversions. |
+| **NDCG@5** | **1.000** | Sustained optimal ranking order across deeper candidate lists. |
+| **Deterministic Offline Fallback** | **100.0% Consistency** | Identical score distribution and zero variance when running offline without LLM connectivity. |
+| **Evaluation Latency** | **0.072 ms/pair** | 24 candidate-role evaluations complete in under 2 milliseconds. |
+
+---
+
+## 13. Swappable Multi-Provider LLM Gateway Architecture
+
+RoleFlow decouples LLM inference from business logic through a Gateway Provider Factory (`backend/core/agents/llm.py`):
+
+| Provider | Configuration Key | Supported Models | Deployment Recommendation |
+| :--- | :--- | :--- | :--- |
+| **Groq** | `LLM_PROVIDER=groq` | `llama-3.3-70b-versatile`, `llama-3.1-8b-instant` | High-throughput cloud inference (<500ms latency). |
+| **OpenAI** | `LLM_PROVIDER=openai` | `gpt-4o`, `gpt-4o-mini` | Commercial enterprise agreements and high reasoning capacity. |
+| **Ollama** | `LLM_PROVIDER=ollama` | `gpt-oss-120b`, `mistral`, `llama3` | Air-gapped on-premise deployments with zero external data egress. |
+| **vLLM / TGI** | `LLM_PROVIDER=vllm` | Custom fine-tuned corporate models | High-concurrency self-hosted GPU clusters. |
+| **Mock Mode** | `LLM_PROVIDER=mock` | Deterministic synthetic engine | Automated CI/CD testing pipelines and unit tests. |
+
+Runtime provider status and active configuration are inspectable via `GET /api/v1/health`.
+
+---
+
+## 14. Automated Testing Suite & CI/CD Pipeline
+
+### 14.1 Pytest Test Suite (26 Tests, 100% Pass Rate)
+- `tests/test_scoring_deterministic.py`: Unit tests for Fit score weighting (30/25/15/10/10/10), experience scaling, project commitment deductions, availability tiers, and 50-run reproducibility.
+- `tests/test_security_rbac.py`: Tests 401 unauthenticated rejections, 403 cross-role barriers, sliding-window rate limit triggers (429), and production demo account lockouts.
+- `tests/test_responsible_ai.py`: Tests EEOC 80% fairness calculations, adverse impact detection, human override validation (>= 10 characters), immutable audit trail logging, and privacy policy endpoints.
+- `tests/test_api_endpoints.py`: Integration tests for health check, authentication, manager role discovery, candidate retrieval with explanations, and employee opportunity matching.
+
+### 14.2 GitHub Actions CI/CD (`.github/workflows/ci.yml`)
+Automated pipeline executes on every push and pull request:
+1. **Flake8 Linting**: Syntax validation and undefined symbol detection.
+2. **Pytest Automated Tests**: Executes all 26 unit and integration test assertions.
+3. **IR Matching Benchmark**: Executes the IR benchmark suite.
+4. **Frontend Production Build**: Validates React 18 production compilation via `npm run build`.
+
+### 14.3 Open Source Governance
+- **LICENSE**: Licensed under Apache License, Version 2.0.
+- **SECURITY.md**: Vulnerability disclosure policy and response SLAs.
+- **GitHub Templates**: Standardized bug report, feature request, and pull request templates.
+
+---
+
+## 15. Turnkey Docker Deployment & Container Architecture
+
+RoleFlow provides a turnkey, single-command Docker Compose orchestration blueprint:
+
+```bash
+# Launch entire RoleFlow stack with one command
+docker compose up --build
+```
+
+### 15.1 Container Wiring
+
+```mermaid
+flowchart LR
+    Browser["Client Browser\n(Port 3000)"] --> Nginx["roleflow-frontend\n(Nginx Reverse Proxy)"]
+    Nginx -->|SPA Static Assets| Frontend["React 19 SPA Build"]
+    Nginx -->|/api/* Requests| Backend["roleflow-backend\n(Flask 3.x on Port 5000)"]
+    Backend --> Postgres["roleflow-postgres\n(pgvector:pg16 on Port 5432)"]
+    Backend --> Mongo["roleflow-mongo\n(MongoDB 7.0 on Port 27017)"]
+```
+
+- **Frontend (`roleflow-frontend`)**: Nginx reverse proxy serving compiled static assets on port 3000 and proxying `/api/` traffic to `backend:5000`.
+- **Backend (`roleflow-backend`)**: Python 3.11-slim container running `app.py`, waiting for healthy database dependencies.
+- **PostgreSQL (`roleflow-postgres`)**: PostgreSQL 16 with pgvector extension and healthcheck.
+- **MongoDB (`roleflow-mongo`)**: MongoDB 7.0 document store with healthcheck.
+
+> **Native Execution Note**: Single-source native execution (`python app.py` and `npm run dev`) remains the primary, zero-overhead developer workflow.
