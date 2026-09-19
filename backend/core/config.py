@@ -1,3 +1,4 @@
+import logging
 import os
 import socket
 from datetime import timedelta
@@ -6,6 +7,8 @@ from urllib.parse import urlparse
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 def _bool(name: str, default: str = "0") -> bool:
@@ -108,5 +111,48 @@ class Config:
     EMBEDDING_DEVICE = os.getenv("EMBEDDING_DEVICE", "cpu")
     EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", "768"))
 
+    # Environment & Security Guards
+    ROLEFLOW_ENV = os.getenv("ROLEFLOW_ENV", os.getenv("FLASK_ENV", "development")).lower()
+    IS_PRODUCTION = ROLEFLOW_ENV == "production"
+    ALLOW_DEMO_USERS = _bool("ALLOW_DEMO_USERS", "0" if IS_PRODUCTION else "1")
+    RATE_LIMIT_ENABLED = _bool("RATE_LIMIT_ENABLED", "1")
+
     # Demo
     DEMO_USER_PASSWORD = os.getenv("DEMO_USER_PASSWORD", "demo1234")
+
+    @classmethod
+    def validate_production_security(cls):
+        """Validate security settings when running in production."""
+        validate_production_security(cls)
+
+
+def validate_production_security(conf=None):
+    """Validate security settings when running in production.
+    
+    Raises:
+        RuntimeError: If security requirements are not met in production.
+    """
+    if conf is None:
+        env = Config.ROLEFLOW_ENV
+        jwt_key = Config.JWT_SECRET_KEY
+        secret_key = Config.SECRET_KEY
+    elif isinstance(conf, dict):
+        env = str(conf.get("ROLEFLOW_ENV", "development")).lower()
+        jwt_key = str(conf.get("JWT_SECRET_KEY", ""))
+        secret_key = str(conf.get("SECRET_KEY", "default-app-secret-key-prod-ok"))
+    else:
+        env = str(getattr(conf, "ROLEFLOW_ENV", "development")).lower()
+        jwt_key = str(getattr(conf, "JWT_SECRET_KEY", ""))
+        secret_key = str(getattr(conf, "SECRET_KEY", "default-app-secret-key-prod-ok"))
+
+    if env == "production":
+        insecure_keys = [
+            "change-me-secret-key-roleflow",
+            "dev-secret-change-me",
+            "roleflow-jwt-insecure-secret-key-change-in-prod",
+            "",
+        ]
+        if jwt_key in insecure_keys or len(jwt_key) < 16:
+            raise RuntimeError("Insecure JWT_SECRET_KEY detected in production! A cryptographically secure secret is required.")
+        if secret_key in insecure_keys or len(secret_key) < 16:
+            raise RuntimeError("Insecure SECRET_KEY detected in production! A cryptographically secure secret is required.")

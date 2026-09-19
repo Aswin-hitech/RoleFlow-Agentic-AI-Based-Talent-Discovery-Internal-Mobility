@@ -67,10 +67,22 @@ def health():
         "llm": "Check LLM endpoint" if services["llm"] == "Unavailable" else "Running",
     }
 
+    from ..agents.llm import get_llm_info
+    llm_info = get_llm_info()
+
     return jsonify(
         status="ok",
         services=services,
         instructions=instructions,
-        llm_model=current_app.config["LLM_MODEL"],
+        llm_provider=llm_info["provider"],
+        llm_model=llm_info["model"],
+        llm_base_url=llm_info["base_url"],
         embedding_model=current_app.config["EMBEDDING_MODEL"],
     )
+
+
+@health_bp.get("/privacy-policy")
+def privacy_policy():
+    """Responsible AI: Return RoleFlow GDPR Article 22, EEOC compliance, and PII disclosure statement."""
+    from ..services.responsible_ai import get_privacy_policy_statement
+    return jsonify(get_privacy_policy_statement())

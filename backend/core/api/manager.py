@@ -11,6 +11,8 @@ from ..extensions import db
 from ..models import Employee, MatchRun, Project, Role, RoleCandidate, Transfer
 from ..tasks import celery_app
 from ..tasks.discovery import run_discovery_task
+from ..services.responsible_ai import calculate_fairness_audit
+from ..services.audit import record_audit_event, get_audit_logs
 
 manager_bp = Blueprint("manager", __name__)
 
@@ -258,8 +260,97 @@ def shortlist_candidate(role_id: str, employee_id: str):
 
     db.session.commit()
 
+    # Log to centralized audit ledger
+    record_audit_event(
+        event_type="shortlist",
+        actor_id=claims.get("name", "Manager"),
+        actor_role=claims.get("role", "manager"),
+        role_id=role_id,
+        employee_id=employee_id,
+        action=f"Shortlisted candidate {emp.full_name} for role {role.title}",
+        previous_state="discovered",
+        new_state="pending_employee",
+    )
+
     return jsonify(
         success=True,
         message=f"{emp.full_name} has been shortlisted. An opportunity has been sent to their portal for review.",
         transfer=transfer.to_dict(),
     )
+
+
+@manager_bp.get("/roles/<role_id>/fairness-audit")
+@jwt_required()
+def get_fairness_audit(role_id: str):
+    """Responsible AI: Run statistical parity and disparate impact audit on candidate pool."""
+    claims = get_jwt()
+    if claims.get("role") not in {"manager", "hr", "admin"}:
+        return jsonify(error="forbidden", message="Manager or HR authorization required."), 403
+
+    audit_result = calculate_fairness_audit(role_id)
+    return jsonify(audit=audit_result)
+
+
+@manager_bp.post("/roles/<role_id>/candidates/<employee_id>/override")
+@jwt_required()
+def override_candidate_score(role_id: str, employee_id: str):
+    """Human-in-the-loop: Manager or HR manually overrides candidate score with mandatory justification."""
+    claims = get_jwt()
+    if claims.get("role") not in {"manager", "hr", "admin"}:
+        return jsonify(error="forbidden", message="Manager or HR authorization required."), 403
+
+    candidate = RoleCandidate.query.filter_by(role_id=role_id, employee_id=employee_id).first()
+    if not candidate:
+        return jsonify(error="not_found", message="Candidate record not found for this role."), 404
+
+    data = request.get_json(silent=True) or {}
+    override_fit = data.get("fit_score")
+    override_readiness = data.get("readiness_score")
+    justification = (data.get("justification") or "").strip()
+
+    if not justification or len(justification) < 10:
+        return jsonify(
+            error="bad_request",
+            message="A detailed justification (minimum 10 characters) is legally required for manual score overrides.",
+        ), 400
+
+    prev_fit = candidate.fit_score
+    prev_readiness = candidate.readiness_score
+
+    if override_fit is not None:
+        candidate.fit_score = max(10, min(99, int(override_fit)))
+    if override_readiness is not None:
+        candidate.readiness_score = max(10, min(99, int(override_readiness)))
+
+    db.session.commit()
+
+    # Record immutable audit trail
+    record_audit_event(
+        event_type="score_override",
+        actor_id=claims.get("name", "Manager"),
+        actor_role=claims.get("role", "manager"),
+        role_id=role_id,
+        employee_id=employee_id,
+        action=f"Manually adjusted candidate scores: Fit {prev_fit} -> {candidate.fit_score}, Readiness {prev_readiness} -> {candidate.readiness_score}",
+        previous_state=f"Fit:{prev_fit},Readiness:{prev_readiness}",
+        new_state=f"Fit:{candidate.fit_score},Readiness:{candidate.readiness_score}",
+        justification=justification,
+    )
+
+    return jsonify(
+        success=True,
+        message="Candidate scores updated with human-in-the-loop audit justification.",
+        candidate=candidate.to_dict(),
+    )
+
+
+@manager_bp.get("/roles/<role_id>/audit-logs")
+@jwt_required()
+def get_role_audit_logs(role_id: str):
+    """Retrieve immutable audit logs for role governance."""
+    claims = get_jwt()
+    if claims.get("role") not in {"manager", "hr", "admin"}:
+        return jsonify(error="forbidden", message="Manager or HR authorization required."), 403
+
+    logs = get_audit_logs(role_id=role_id)
+    return jsonify(audit_logs=logs)

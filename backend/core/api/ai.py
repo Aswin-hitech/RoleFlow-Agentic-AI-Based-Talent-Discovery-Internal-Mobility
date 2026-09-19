@@ -9,6 +9,7 @@ Endpoints:
 
 from flask import Blueprint, jsonify, request
 from ..models import MatchRun
+from ..security import rate_limit
 from ..agents.role_intelligence import parse_job_description
 from ..agents.skill_gap import generate_skill_gap_report
 from ..agents.learning import generate_learning_roadmap
@@ -17,6 +18,7 @@ ai_bp = Blueprint("ai", __name__)
 
 
 @ai_bp.post("/roles/parse-jd")
+@rate_limit(max_requests=30, window_seconds=60.0)
 def parse_jd():
     data = request.get_json(silent=True) or {}
     jd_text = data.get("jd_text") or data.get("description") or ""

@@ -9,12 +9,14 @@ from flask_jwt_extended import jwt_required
 
 from ..extensions import db
 from ..models import Course, Role
+from ..security import rate_limit
 from ..services.crawler import crawl_courses_concurrently, crawl_market_trends_concurrently
 
 crawler_bp = Blueprint("crawler", __name__)
 
 
 @crawler_bp.post("/courses")
+@rate_limit(max_requests=30, window_seconds=60.0)
 def crawl_courses():
     """Trigger a concurrent multi-threaded web crawl across multi-provider learning repositories."""
     data = request.get_json(silent=True) or {}
@@ -50,6 +52,7 @@ def crawl_courses():
 
 
 @crawler_bp.post("/market-skills")
+@rate_limit(max_requests=30, window_seconds=60.0)
 def crawl_market_skills():
     """Execute multi-threaded market crawl to discover trending skills and requirements for a domain."""
     data = request.get_json(silent=True) or {}

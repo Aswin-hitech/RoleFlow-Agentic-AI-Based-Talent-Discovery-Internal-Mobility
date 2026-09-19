@@ -91,9 +91,22 @@ def approve_transfer(transfer_id: str):
 
     db.session.commit()
 
+    from ..services.audit import record_audit_event
+    record_audit_event(
+        event_type="approval",
+        actor_id=claims.get("name", "HR Director"),
+        actor_role=claims.get("role", "hr"),
+        role_id=transfer.role_id,
+        employee_id=transfer.employee_id,
+        action="Approved internal talent transfer",
+        previous_state="pending_hr",
+        new_state="approved",
+        justification=notes,
+    )
+
     return jsonify(
         success=True,
-        message="Internal transfer approved successfully. Workforce records updated.",
+        message=f"Transfer approved for candidate {transfer.employee_id} to role {transfer.role_id}.",
         transfer=transfer.to_dict(),
     )
 

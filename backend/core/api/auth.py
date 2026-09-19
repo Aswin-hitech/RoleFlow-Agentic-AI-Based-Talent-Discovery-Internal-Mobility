@@ -37,11 +37,21 @@ DEMO_USERS = {
 }
 
 
+from ..security import rate_limit
+
+
 @auth_bp.post("/login")
+@rate_limit(max_requests=10, window_seconds=60.0)
 def login():
     data = request.get_json(silent=True) or {}
     email = (data.get("email") or "").strip().lower()
     password = data.get("password") or ""
+
+    if email in DEMO_USERS and not Config.ALLOW_DEMO_USERS:
+        return jsonify(
+            error="forbidden",
+            message="Demo user accounts are disabled in production mode. Set ALLOW_DEMO_USERS=true to override.",
+        ), 403
 
     user = None
     # Check database first

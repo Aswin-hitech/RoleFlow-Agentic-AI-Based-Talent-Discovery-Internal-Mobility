@@ -35,6 +35,10 @@ def _get_current_employee_id() -> str:
 @employee_bp.get("/profile")
 @jwt_required()
 def get_my_profile():
+    claims = get_jwt()
+    if claims.get("role") not in {"employee", "admin"}:
+        return jsonify(error="forbidden", message="Employee authorization required."), 403
+
     emp_id = _get_current_employee_id()
     profile = analyze_employee_profile(emp_id)
     if not profile:
@@ -46,6 +50,10 @@ def get_my_profile():
 @jwt_required()
 def list_opportunities():
     """List internal opportunities available to the employee. Strictly filters hidden roles (§25, §37)."""
+    claims = get_jwt()
+    if claims.get("role") not in {"employee", "admin"}:
+        return jsonify(error="forbidden", message="Employee authorization required."), 403
+
     emp_id = _get_current_employee_id()
 
     # Query matches for this employee
@@ -149,6 +157,18 @@ def accept_opportunity(role_id: str):
 
     db.session.commit()
 
+    from ..services.audit import record_audit_event
+    record_audit_event(
+        event_type="transfer_transition",
+        actor_id=emp_id,
+        actor_role="employee",
+        role_id=role_id,
+        employee_id=emp_id,
+        action=f"Employee accepted transfer opportunity for role {role.title}",
+        previous_state="pending_employee",
+        new_state="pending_hr",
+    )
+
     return jsonify(
         success=True,
         message=f"You accepted the opportunity for {role.title}. The transfer request has been forwarded to HR for governance review.",
@@ -177,6 +197,18 @@ def decline_opportunity(role_id: str):
         transfer.status = "employee_declined"
 
     db.session.commit()
+
+    from ..services.audit import record_audit_event
+    record_audit_event(
+        event_type="transfer_transition",
+        actor_id=emp_id,
+        actor_role="employee",
+        role_id=role_id,
+        employee_id=emp_id,
+        action=f"Employee declined transfer opportunity for role {role.title}",
+        previous_state="pending_employee",
+        new_state="employee_declined",
+    )
 
     return jsonify(
         success=True,
